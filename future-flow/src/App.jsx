@@ -1,4 +1,14 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+
+function usePersisted(key, initial) {
+  const [v, setV] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : initial } catch { return initial }
+  })
+  useEffect(() => {
+    try { v == null ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(v)) } catch {}
+  }, [key, v])
+  return [v, setV]
+}
 
 const fmt$   = v => v != null ? `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
 const fmtK   = v => v >= 1e6  ? `$${(v/1e6).toFixed(1)}M` : `$${(v/1e3).toFixed(0)}K`
@@ -170,7 +180,7 @@ const SCREENER_TIPS = [
 function ScreenerTab() {
   const [input, setInput]   = useState('')
   const [busy, setBusy]     = useState(false)
-  const [result, setResult] = useState(null)
+  const [result, setResult] = usePersisted('ff_screener_result', null)
   const [error, setError]   = useState(null)
 
   const run = async (q) => {
@@ -252,7 +262,7 @@ function FlowRow({ f, idx }) {
 
 function WhaleTab() {
   const [busy, setBusy]   = useState(false)
-  const [data, setData]   = useState(null)
+  const [data, setData]   = usePersisted('ff_whales_data', null)
   const [error, setError] = useState(null)
 
   const scan = async () => {
@@ -478,7 +488,7 @@ function GoalsTab() {
   const portfolio                 = loadPort()
   const [goal, setGoal]           = useState('')
   const [busy, setBusy]           = useState(false)
-  const [plan, setPlan]           = useState(null)
+  const [plan, setPlan]           = usePersisted('ff_goals_plan', null)
   const [error, setError]         = useState(null)
 
   const go = async (g) => {
@@ -674,10 +684,10 @@ export default function App() {
         <span>⚠️</span> Solo análisis informativo. No es asesoría financiera. Invierte bajo tu propio riesgo.
       </div>
 
-      {tab === 'screener'  && <ScreenerTab  key="s" />}
-      {tab === 'whales'    && <WhaleTab     key="w" />}
-      {tab === 'portfolio' && <PortfolioTab key="p" />}
-      {tab === 'goals'     && <GoalsTab     key="g" />}
+      <div style={{ display: tab==='screener'  ? 'flex' : 'none', flex:1, flexDirection:'column', minHeight:0 }}><ScreenerTab  /></div>
+      <div style={{ display: tab==='whales'    ? 'flex' : 'none', flex:1, flexDirection:'column', minHeight:0 }}><WhaleTab     /></div>
+      <div style={{ display: tab==='portfolio' ? 'flex' : 'none', flex:1, flexDirection:'column', minHeight:0 }}><PortfolioTab /></div>
+      <div style={{ display: tab==='goals'     ? 'flex' : 'none', flex:1, flexDirection:'column', minHeight:0 }}><GoalsTab     /></div>
     </div>
   )
 }

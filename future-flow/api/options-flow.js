@@ -35,7 +35,7 @@ function score(contracts, type) {
       const vol = c.volume || 0
       const oi  = c.openInterest || 1
       const ask = c.ask || c.lastPrice || 0
-      return vol >= 500 && vol / oi >= 2.5 && ask > 0
+      return vol >= 100 && vol / oi >= 1.5 && ask > 0
     })
     .map(c => {
       const vol      = c.volume || 0
