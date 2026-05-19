@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, createContext, useContext } from 'react'
 
 function usePersisted(key, initial) {
   const [v, setV] = useState(() => {
@@ -8,6 +8,97 @@ function usePersisted(key, initial) {
     try { v == null ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(v)) } catch {}
   }, [key, v])
   return [v, setV]
+}
+
+const BeginnerCtx = createContext(false)
+const useBeginner = () => useContext(BeginnerCtx)
+
+function Tip({ children }) {
+  const on = useBeginner()
+  if (!on) return null
+  return <div style={{ fontSize:10.5, color:'rgba(245,158,11,0.85)', marginTop:4, lineHeight:1.45, display:'flex', gap:5, alignItems:'flex-start' }}>
+    <span style={{ flexShrink:0 }}>💡</span><span>{children}</span>
+  </div>
+}
+
+function Gauge({ value=0, size=78, label='ÉXITO' }) {
+  const safe = Math.max(0, Math.min(100, value || 0))
+  const r = (size - 10) / 2
+  const c = 2 * Math.PI * r
+  const offset = c * (1 - safe / 100)
+  const color = safe >= 70 ? '#22C55E' : safe >= 50 ? '#F59E0B' : '#EF4444'
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="7" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={offset} transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ transition:'stroke-dashoffset 1.2s cubic-bezier(.16,1,.3,1)' }} />
+      <text x={size/2} y={size/2 - 1} textAnchor="middle" dominantBaseline="middle" fill={color} fontSize={size*0.3} fontWeight="900">{safe}</text>
+      <text x={size/2} y={size/2 + size*0.22} textAnchor="middle" fill="rgba(240,240,245,0.4)" fontSize="7" fontWeight="800" letterSpacing="0.1em">{label}</text>
+    </svg>
+  )
+}
+
+function Donut({ data, size=140, thickness=22 }) {
+  const r = (size - thickness) / 2
+  const c = 2 * Math.PI * r
+  const total = data.reduce((s,d) => s + (d.value||0), 0) || 1
+  const palette = ['#3B82F6','#22C55E','#F59E0B','#A855F7','#06B6D4','#EC4899','#EF4444','#84CC16']
+  let acc = 0
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={thickness} />
+      {data.map((d,i) => {
+        const pct = (d.value||0) / total
+        if (pct <= 0) return null
+        const len = c * pct - 1.5
+        const start = c * acc
+        acc += pct
+        return (
+          <circle key={i} cx={size/2} cy={size/2} r={r} fill="none"
+            stroke={d.color || palette[i % palette.length]} strokeWidth={thickness} strokeLinecap="butt"
+            strokeDasharray={`${len} ${c}`} strokeDashoffset={-start}
+            transform={`rotate(-90 ${size/2} ${size/2})`} />
+        )
+      })}
+    </svg>
+  )
+}
+
+function PriceRange({ low, high, current, target, stop }) {
+  if (low == null || high == null || current == null || high <= low) return null
+  const clamp = v => Math.max(0, Math.min(100, ((v - low) / (high - low)) * 100))
+  const cur = clamp(current)
+  const tgt = target != null ? clamp(target) : null
+  const stp = stop   != null ? clamp(stop)   : null
+  return (
+    <div style={{ marginTop:4 }}>
+      <div style={{ position:'relative', height:8, background:'linear-gradient(90deg, rgba(34,197,94,0.55), rgba(245,158,11,0.45), rgba(239,68,68,0.55))', borderRadius:5 }}>
+        {stp != null && <div title="stop loss" style={{ position:'absolute', left:`${stp}%`, top:-2, width:2, height:12, background:'#EF4444', transform:'translateX(-50%)' }} />}
+        {tgt != null && <div title="objetivo" style={{ position:'absolute', left:`${tgt}%`, top:-2, width:2, height:12, background:'#22C55E', transform:'translateX(-50%)' }} />}
+        <div style={{ position:'absolute', left:`${cur}%`, top:-4, transform:'translateX(-50%)', width:14, height:14, background:'#fff', borderRadius:'50%', border:'3px solid #0A0A0F', boxShadow:'0 0 0 1px rgba(255,255,255,0.6)' }} />
+      </div>
+      <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'var(--text-mute)', marginTop:5 }}>
+        <span>52-sem mín ${low?.toFixed(0)}</span>
+        <span style={{ color:'var(--text-dim)' }}>actual ${current?.toFixed(2)}</span>
+        <span>máx ${high?.toFixed(0)}</span>
+      </div>
+    </div>
+  )
+}
+
+function Legend({ items }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+      {items.map((it,i) => (
+        <div key={i} style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ width:10, height:10, borderRadius:3, background:it.color, flexShrink:0 }} />
+          <span style={{ fontSize:12, color:'var(--text-dim)', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{it.label}</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>{it.right}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 const fmt$   = v => v != null ? `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
@@ -99,71 +190,116 @@ function ProbBar({ value }) {
   )
 }
 
+const ACTION_HELP = {
+  COMPRAR:   'La IA cree que la acción tiene buenas chances de subir. Riesgo más bajo.',
+  ESPECULAR: 'Hay oportunidad pero también más riesgo. Solo invierte lo que estés dispuesto a perder.',
+  OBSERVAR:  'Todavía no es momento de comprar. Espera mejor señal.',
+}
+
 function StockCard({ pick, idx }) {
   const actionClr = { COMPRAR:'var(--green)', ESPECULAR:'var(--amber)', OBSERVAR:'var(--text-mute)' }[pick.action] || 'var(--text-mute)'
   const riskClr   = { BAJO:'var(--green)', MEDIO:'var(--amber)', ALTO:'var(--red)' }[pick.riskLevel] || 'var(--text-mute)'
   const hasOpts   = pick.optionsPlay?.strategy && pick.optionsPlay.strategy !== 'N/A'
+  const upside    = pick.target30d && pick.currentPrice ? ((pick.target30d - pick.currentPrice) / pick.currentPrice) * 100 : null
+  const downside  = pick.stopLoss && pick.currentPrice ? ((pick.stopLoss - pick.currentPrice) / pick.currentPrice) * 100 : null
 
   return (
-    <Card style={{ marginBottom: 12, animation: `fadeIn 0.35s ease ${idx * 0.1}s both` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+    <Card style={{ marginBottom: 14, animation: `fadeIn 0.35s ease ${idx * 0.1}s both`, padding:'16px 16px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14, gap:12 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
+            <span style={{ fontSize:22, fontWeight:900, letterSpacing:'-0.5px' }}>{pick.symbol}</span>
+            <Tag label={`${pick.changePercent?.toFixed(1)}% hoy`} color="var(--red)" />
+          </div>
+          <div style={{ fontSize:12, color:'var(--text-mute)', marginBottom:8 }}>{pick.name}</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <Tag label={pick.action} color={actionClr} />
+            <span style={{ fontSize:10, fontWeight:700, color:riskClr, letterSpacing:'0.04em' }}>● RIESGO {pick.riskLevel}</span>
+          </div>
+          <Tip>{ACTION_HELP[pick.action]}</Tip>
+        </div>
+        <div style={{ flexShrink:0 }}>
+          <Gauge value={pick.probability} label="ÉXITO" />
+        </div>
+      </div>
+
+      {pick.probabilityReason && <div style={{ fontSize:12, color:'var(--text-dim)', lineHeight:1.5, marginBottom:12, padding:'9px 11px', background:'rgba(255,255,255,0.03)', borderRadius:9 }}>{pick.probabilityReason}</div>}
+      <Tip>"Probabilidad de éxito" es la confianza de la IA en que esta apuesta funcione. 70+ es alta confianza, 50-70 media, menos de 50 baja.</Tip>
+
+      {pick.fiftyTwoWeekLow != null && pick.fiftyTwoWeekHigh != null && (
+        <div style={{ marginBottom:14, marginTop:10 }}>
+          <MiniLabel>POSICIÓN EN EL AÑO</MiniLabel>
+          <PriceRange low={pick.fiftyTwoWeekLow} high={pick.fiftyTwoWeekHigh} current={pick.currentPrice} target={pick.target30d} stop={pick.stopLoss} />
+          <Tip>El punto blanco muestra dónde está el precio dentro de su rango de los últimos 12 meses. Verde = stop loss, gris = objetivo. Cerca del mín suele ser zona de oportunidad.</Tip>
+        </div>
+      )}
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8, marginBottom:12 }}>
+        <div style={{ background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.22)', borderRadius:10, padding:'10px 12px' }}>
+          <div style={{ fontSize:9, fontWeight:700, color:'rgba(34,197,94,0.85)', letterSpacing:'0.07em', marginBottom:3 }}>↗ OBJETIVO 30d</div>
+          <div style={{ fontSize:16, fontWeight:800, color:'var(--green)' }}>{fmt$(pick.target30d)}</div>
+          {upside != null && <div style={{ fontSize:11, color:'var(--green)', fontWeight:600 }}>+{upside.toFixed(1)}% potencial</div>}
+          <Tip>Precio al que la IA cree que podría llegar en 30 días. No garantizado.</Tip>
+        </div>
+        <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.22)', borderRadius:10, padding:'10px 12px' }}>
+          <div style={{ fontSize:9, fontWeight:700, color:'rgba(239,68,68,0.85)', letterSpacing:'0.07em', marginBottom:3 }}>↘ STOP LOSS</div>
+          <div style={{ fontSize:16, fontWeight:800, color:'var(--red)' }}>{fmt$(pick.stopLoss)}</div>
+          {downside != null && <div style={{ fontSize:11, color:'var(--red)', fontWeight:600 }}>{downside.toFixed(1)}% máx pérdida</div>}
+          <Tip>Precio al que deberías vender si la cosa sale mal. Limita tus pérdidas.</Tip>
+        </div>
+      </div>
+
+      <div style={{ background:'var(--bg3)', borderRadius:10, padding:'9px 12px', marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-            <span style={{ fontSize: 20, fontWeight: 900 }}>{pick.symbol}</span>
-            <Tag label={`${pick.changePercent?.toFixed(1)}%`} color="var(--red)" />
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-mute)' }}>{pick.name}</div>
+          <div style={{ fontSize:9, color:'var(--text-mute)', fontWeight:700, letterSpacing:'0.06em' }}>ZONA DE COMPRA</div>
+          <div style={{ fontSize:13, fontWeight:700 }}>{fmt$(pick.entryLow)} – {fmt$(pick.entryHigh)}</div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-          <Tag label={pick.action} color={actionClr} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: riskClr }}>RIESGO {pick.riskLevel}</span>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:9, color:'var(--text-mute)', fontWeight:700, letterSpacing:'0.06em' }}>PRECIO AHORA</div>
+          <div style={{ fontSize:13, fontWeight:700 }}>{fmt$(pick.currentPrice)}</div>
         </div>
       </div>
-
-      <ProbBar value={pick.probability} />
-      {pick.probabilityReason && <div style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: -6, marginBottom: 12, lineHeight: 1.45 }}>{pick.probabilityReason}</div>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6, marginBottom: 12 }}>
-        {[
-          { l:'PRECIO',    v: fmt$(pick.currentPrice) },
-          { l:'ENTRADA',   v: `${fmt$(pick.entryLow)?.replace('$','')}-${fmt$(pick.entryHigh)}` },
-          { l:'OBJETIVO',  v: fmt$(pick.target30d),  c:'var(--green)' },
-          { l:'STOP LOSS', v: fmt$(pick.stopLoss),   c:'var(--red)'   },
-        ].map(({ l,v,c }) => (
-          <div key={l} style={{ background:'var(--bg3)', borderRadius:9, padding:'7px 6px', textAlign:'center' }}>
-            <div style={{ fontSize:8, fontWeight:700, letterSpacing:'0.06em', color:'var(--text-mute)', marginBottom:2 }}>{l}</div>
-            <div style={{ fontSize:11, fontWeight:700, color:c||'var(--text)' }}>{v}</div>
-          </div>
-        ))}
-      </div>
+      <Tip>"Zona de compra" es el rango de precio donde tiene más sentido entrar. Si la acción está dentro, es buen momento.</Tip>
 
       {(pick.revenueGrowth != null || pick.earningsGrowth != null) && (
-        <div style={{ display:'flex', gap:8, marginBottom:10 }}>
-          {[{l:'INGRESOS YoY',v:pick.revenueGrowth},{l:'GANANCIAS YoY',v:pick.earningsGrowth}].map(({l,v}) =>
+        <div style={{ display:'flex', gap:8, marginBottom:12, marginTop:12 }}>
+          {[{l:'VENTAS vs año pasado',v:pick.revenueGrowth,tip:'Cuánto más dinero está facturando la empresa que el año pasado.'},
+            {l:'GANANCIAS vs año pasado',v:pick.earningsGrowth,tip:'Cuánto más dinero está ganando la empresa que el año pasado.'}].map(({l,v,tip}) =>
             v != null ? (
-              <div key={l} style={{ flex:1, background:v>=0?'rgba(34,197,94,0.08)':'rgba(239,68,68,0.08)', border:`1px solid ${v>=0?'rgba(34,197,94,0.22)':'rgba(239,68,68,0.22)'}`, borderRadius:8, padding:'6px 10px' }}>
-                <div style={{ fontSize:9, fontWeight:600, letterSpacing:'0.05em', color:'var(--text-mute)', marginBottom:2 }}>{l}</div>
-                <div style={{ fontSize:13, fontWeight:700, color:v>=0?'var(--green)':'var(--red)' }}>{fmtPct(v)} {v>=0?'↑':'↓'}</div>
+              <div key={l} style={{ flex:1, background:v>=0?'rgba(34,197,94,0.08)':'rgba(239,68,68,0.08)', border:`1px solid ${v>=0?'rgba(34,197,94,0.22)':'rgba(239,68,68,0.22)'}`, borderRadius:9, padding:'8px 10px' }}>
+                <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.04em', color:'var(--text-mute)', marginBottom:3 }}>{l}</div>
+                <div style={{ fontSize:14, fontWeight:800, color:v>=0?'var(--green)':'var(--red)' }}>{fmtPct(v)} {v>=0?'↑':'↓'}</div>
+                <Tip>{tip}</Tip>
               </div>
             ) : null
           )}
         </div>
       )}
 
-      <div style={{ fontSize:13, color:'var(--text-dim)', lineHeight:1.65, marginBottom:hasOpts?10:0 }}>{pick.reasoning}</div>
+      <div style={{ fontSize:13, color:'var(--text-dim)', lineHeight:1.65, marginBottom:hasOpts?12:0, padding:'10px 12px', background:'rgba(255,255,255,0.02)', borderRadius:9, borderLeft:'2px solid var(--blue)' }}>{pick.reasoning}</div>
 
       {hasOpts && (
-        <div style={{ background:'rgba(59,130,246,0.07)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:10, padding:'9px 12px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-            <span style={{ fontSize:11, fontWeight:700, color:'var(--blue)' }}>OPCIONES · {pick.optionsPlay.strategy}</span>
-            <span style={{ fontSize:10, color:'var(--text-mute)' }}>~{pick.optionsPlay.daysToExpiry}d</span>
+        <div style={{ background:'rgba(59,130,246,0.07)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:11, padding:'11px 13px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:7 }}>
+            <span style={{ fontSize:11, fontWeight:800, color:'var(--blue)', letterSpacing:'0.04em' }}>📈 OPCIONES · {pick.optionsPlay.strategy}</span>
+            <span style={{ fontSize:10, color:'var(--text-mute)' }}>~{pick.optionsPlay.daysToExpiry} días</span>
           </div>
-          <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
-            <span style={{ fontSize:12, color:'var(--text-dim)' }}>Strike <b>${pick.optionsPlay.strike}</b></span>
-            <span style={{ fontSize:12, color:'var(--text-dim)' }}>Prima ~{pick.optionsPlay.estimatedPremium}</span>
-            <span style={{ fontSize:12, color:'var(--green)', fontWeight:700 }}>Max +{pick.optionsPlay.maxGainPct}</span>
+          <Tip>Las opciones son contratos avanzados — apuestas con apalancamiento. Si no las conoces, IGNORA esta sección. Estudia primero.</Tip>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginTop:8 }}>
+            <div style={{ background:'var(--bg3)', borderRadius:8, padding:'6px 8px', textAlign:'center' }}>
+              <div style={{ fontSize:8, color:'var(--text-mute)', fontWeight:700 }}>STRIKE</div>
+              <div style={{ fontSize:12, fontWeight:800 }}>${pick.optionsPlay.strike}</div>
+            </div>
+            <div style={{ background:'var(--bg3)', borderRadius:8, padding:'6px 8px', textAlign:'center' }}>
+              <div style={{ fontSize:8, color:'var(--text-mute)', fontWeight:700 }}>PRIMA</div>
+              <div style={{ fontSize:12, fontWeight:800 }}>{pick.optionsPlay.estimatedPremium}</div>
+            </div>
+            <div style={{ background:'rgba(34,197,94,0.12)', borderRadius:8, padding:'6px 8px', textAlign:'center' }}>
+              <div style={{ fontSize:8, color:'var(--text-mute)', fontWeight:700 }}>MAX</div>
+              <div style={{ fontSize:12, fontWeight:800, color:'var(--green)' }}>+{pick.optionsPlay.maxGainPct}</div>
+            </div>
           </div>
-          {pick.optionsPlay.reason && <div style={{ fontSize:11, color:'var(--text-mute)', marginTop:5 }}>{pick.optionsPlay.reason}</div>}
+          {pick.optionsPlay.reason && <div style={{ fontSize:11, color:'var(--text-mute)', marginTop:7, lineHeight:1.5 }}>{pick.optionsPlay.reason}</div>}
         </div>
       )}
     </Card>
@@ -234,27 +370,25 @@ function ScreenerTab() {
 function FlowRow({ f, idx }) {
   const isBull = f.type === 'CALL'
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, marginBottom:8, animation:`fadeIn 0.25s ease ${idx*0.04}s both` }}>
-      <div style={{ width:40, height:40, borderRadius:10, background:isBull?'rgba(34,197,94,0.12)':'rgba(239,68,68,0.12)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-        <span style={{ fontSize:8, fontWeight:800, color:isBull?'var(--green)':'var(--red)', letterSpacing:'0.05em' }}>{f.type}</span>
-        <span style={{ fontSize:12 }}>{isBull?'🟢':'🔴'}</span>
+    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 13px', background:'var(--bg2)', border:`1px solid ${isBull?'rgba(34,197,94,0.18)':'rgba(239,68,68,0.18)'}`, borderRadius:12, marginBottom:8, animation:`fadeIn 0.25s ease ${idx*0.04}s both` }}>
+      <div style={{ width:44, height:44, borderRadius:11, background:isBull?'rgba(34,197,94,0.14)':'rgba(239,68,68,0.14)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+        <span style={{ fontSize:8, fontWeight:800, color:isBull?'var(--green)':'var(--red)', letterSpacing:'0.05em' }}>{isBull?'SUBE':'BAJA'}</span>
+        <span style={{ fontSize:13 }}>{isBull?'🟢':'🔴'}</span>
       </div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
-          <span style={{ fontSize:15, fontWeight:800 }}>{f.symbol}</span>
+          <span style={{ fontSize:16, fontWeight:800 }}>{f.symbol}</span>
           <span style={{ fontSize:11, color:'var(--text-mute)' }}>${f.strike} · {f.expiry}</span>
           {f.daysOut <= 7 && <Tag label="PRONTO" color="var(--amber)" />}
         </div>
         <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
           <span style={{ fontSize:11, color:'var(--text-dim)' }}>Vol <b>{f.volume?.toLocaleString()}</b></span>
-          <span style={{ fontSize:11, color:'var(--text-dim)' }}>OI {f.openInt?.toLocaleString()}</span>
-          <span style={{ fontSize:11, fontWeight:700, color:'var(--amber)' }}>{f.volOiRatio}x OI</span>
-          <span style={{ fontSize:11, color:'var(--text-dim)' }}>IV {f.iv}</span>
+          <span style={{ fontSize:11, fontWeight:700, color:'var(--amber)' }}>{f.volOiRatio}× lo normal</span>
         </div>
       </div>
       <div style={{ textAlign:'right', flexShrink:0 }}>
-        <div style={{ fontSize:14, fontWeight:800, color:isBull?'var(--green)':'var(--red)' }}>{fmtK(f.notional)}</div>
-        <div style={{ fontSize:9, color:'var(--text-mute)' }}>notional</div>
+        <div style={{ fontSize:15, fontWeight:800, color:isBull?'var(--green)':'var(--red)' }}>{fmtK(f.notional)}</div>
+        <div style={{ fontSize:9, color:'var(--text-mute)' }}>apuesta</div>
       </div>
     </div>
   )
@@ -296,29 +430,41 @@ function WhaleTab() {
 
       {data && !busy && (
         <>
+          <Tip>Las "ballenas" son grandes inversionistas (fondos, bancos) que mueven millones. Cuando apuestan fuerte por algo, suele ser información valiosa. Si compran muchos CALLs creen que sube; muchos PUTs, que baja.</Tip>
+
           {data.interpretation && (
-            <div style={{ background:'rgba(59,130,246,0.07)', border:'1px solid rgba(59,130,246,0.18)', borderRadius:13, padding:'11px 13px', marginBottom:14 }}>
-              <MiniLabel>INTERPRETACIÓN IA · {new Date(data.fetchedAt).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</MiniLabel>
+            <div style={{ background:'rgba(59,130,246,0.07)', border:'1px solid rgba(59,130,246,0.18)', borderRadius:13, padding:'12px 14px', marginBottom:14, marginTop:8 }}>
+              <MiniLabel>QUÉ ESTÁ PASANDO · {new Date(data.fetchedAt).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</MiniLabel>
               <div style={{ fontSize:13, color:'var(--text-dim)', lineHeight:1.6 }}>{data.interpretation}</div>
               <div style={{ fontSize:11, color:'var(--text-mute)', marginTop:5 }}>Escaneados: {data.scanned} activos</div>
             </div>
           )}
 
-          <div style={{ display:'flex', gap:8, marginBottom:14 }}>
-            {[
-              { n:bulls.length, l:'CALLS alcistas', c:'var(--green)' },
-              { n:bears.length, l:'PUTS bajistas',  c:'var(--red)'   },
-              { n:fmtK(total),  l:'total notional', c:'var(--amber)' },
-            ].map(({n,l,c}) => (
-              <div key={l} style={{ flex:1, background:`${c}0F`, border:`1px solid ${c}33`, borderRadius:11, padding:'9px 10px', textAlign:'center' }}>
-                <div style={{ fontSize:17, fontWeight:800, color:c }}>{n}</div>
-                <div style={{ fontSize:9, color:'var(--text-mute)', marginTop:1 }}>{l}</div>
+          {data.flows?.length > 0 && (
+            <Card style={{ marginBottom:14, padding:'14px 14px' }}>
+              <MiniLabel>BALANCE DEL SENTIMIENTO</MiniLabel>
+              <div style={{ display:'flex', height:34, borderRadius:9, overflow:'hidden', marginBottom:8 }}>
+                <div style={{ flex:bulls.length||0.001, background:'var(--green)', display:'flex', alignItems:'center', justifyContent:'center', minWidth:bulls.length?40:0 }}>
+                  {bulls.length>0 && <span style={{ fontSize:12, fontWeight:800, color:'#fff' }}>{bulls.length} ↑</span>}
+                </div>
+                <div style={{ flex:bears.length||0.001, background:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center', minWidth:bears.length?40:0 }}>
+                  {bears.length>0 && <span style={{ fontSize:12, fontWeight:800, color:'#fff' }}>{bears.length} ↓</span>}
+                </div>
               </div>
-            ))}
-          </div>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:11 }}>
+                <span style={{ color:'var(--green)', fontWeight:700 }}>Apuestas a que SUBE</span>
+                <span style={{ color:'var(--amber)', fontWeight:700 }}>Total ${(total/1e6).toFixed(1)}M</span>
+                <span style={{ color:'var(--red)', fontWeight:700 }}>Apuestas a que BAJA</span>
+              </div>
+              <Tip>Cuando hay más barra verde que roja, las ballenas están optimistas. Más rojo = pesimistas. Equilibrado = incertidumbre.</Tip>
+            </Card>
+          )}
 
-          <MiniLabel>TOP FLUJOS POR TAMAÑO DE APUESTA</MiniLabel>
-          {data.flows?.map((f,i) => <FlowRow key={`${f.symbol}-${f.type}-${f.strike}-${i}`} f={f} idx={i} />)}
+          <MiniLabel>LAS APUESTAS MÁS GRANDES</MiniLabel>
+          <Tip>Ordenadas por dinero apostado. "×lo normal" significa cuántas veces más actividad de lo habitual hay en ese contrato.</Tip>
+          <div style={{ marginTop:8 }}>
+            {data.flows?.map((f,i) => <FlowRow key={`${f.symbol}-${f.type}-${f.strike}-${i}`} f={f} idx={i} />)}
+          </div>
 
           <button onClick={() => setData(null)} style={{ width:'100%', marginTop:10, padding:'11px', background:'transparent', border:'1px solid var(--border)', borderRadius:12, color:'var(--text-mute)', fontSize:13, cursor:'pointer' }}>
             Volver a escanear
@@ -406,17 +552,49 @@ function PortfolioTab() {
 
       {port.positions?.length > 0 && !busy && (
         <>
-          <Card style={{ marginBottom:14 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <Card style={{ marginBottom:14, padding:'16px 16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
               <div>
-                <div style={{ fontSize:24, fontWeight:800 }}>{fmt$(totalVal)}</div>
-                <div style={{ fontSize:11, color:'var(--text-mute)' }}>Valor total del portafolio</div>
+                <div style={{ fontSize:26, fontWeight:900, letterSpacing:'-0.5px' }}>{fmt$(totalVal)}</div>
+                <div style={{ fontSize:11, color:'var(--text-mute)', marginTop:2 }}>Valor total</div>
+                <Tip>Cuánto valdría tu portafolio si vendieras todo ahora mismo.</Tip>
               </div>
               <div style={{ textAlign:'right' }}>
-                <div style={{ fontSize:17, fontWeight:700, color:totalGL>=0?'var(--green)':'var(--red)' }}>{totalGL>=0?'+':''}{fmt$(totalGL)}</div>
-                <div style={{ fontSize:11, color:totalGL>=0?'var(--green)':'var(--red)' }}>{fmtPct(totalCost>0?(totalGL/totalCost)*100:0)}</div>
+                <div style={{ fontSize:18, fontWeight:800, color:totalGL>=0?'var(--green)':'var(--red)' }}>{totalGL>=0?'+':''}{fmt$(totalGL)}</div>
+                <div style={{ fontSize:12, color:totalGL>=0?'var(--green)':'var(--red)', fontWeight:600 }}>{fmtPct(totalCost>0?(totalGL/totalCost)*100:0)}</div>
+                <div style={{ fontSize:10, color:'var(--text-mute)' }}>ganancia/pérdida</div>
               </div>
             </div>
+
+            {port.positions.length >= 2 && (() => {
+              const palette = ['#3B82F6','#22C55E','#F59E0B','#A855F7','#06B6D4','#EC4899','#EF4444','#84CC16']
+              const items = port.positions
+                .map((p,i) => ({ label:p.symbol, value:(p.currentValue || p.avgCost*p.shares || 0), color:palette[i%palette.length] }))
+                .sort((a,b) => b.value - a.value)
+              const top = items.slice(0,6)
+              const rest = items.slice(6)
+              if (rest.length) top.push({ label:`+${rest.length} más`, value:rest.reduce((s,r)=>s+r.value,0), color:'#52525B' })
+              const legend = top.map(it => ({
+                ...it,
+                right: `${((it.value/totalVal)*100).toFixed(0)}%`
+              }))
+              return (
+                <div style={{ display:'flex', gap:14, alignItems:'center', padding:'8px 0 4px', borderTop:'1px solid var(--border)' }}>
+                  <div style={{ flexShrink:0, position:'relative' }}>
+                    <Donut data={top} size={120} thickness={20} />
+                    <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                      <div style={{ fontSize:9, color:'var(--text-mute)', fontWeight:700 }}>{port.positions.length}</div>
+                      <div style={{ fontSize:9, color:'var(--text-mute)' }}>posiciones</div>
+                    </div>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <Legend items={legend} />
+                  </div>
+                </div>
+              )
+            })()}
+            <Tip>Esta gráfica muestra qué porcentaje de tu dinero está en cada acción. Tener TODO en una sola es muy arriesgado — diversificar reduce el riesgo.</Tip>
+
             <div style={{ display:'flex', gap:8 }}>
               <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleFile(e.target.files[0])} />
               {[
@@ -550,17 +728,28 @@ function GoalsTab() {
 
             {plan.recommendedAllocation?.length > 0 && (
               <Card style={{ marginBottom:12 }}>
-                <MiniLabel>ASIGNACIÓN RECOMENDADA</MiniLabel>
+                <MiniLabel>CÓMO REPARTIR TU DINERO</MiniLabel>
+                <Tip>Esta es la mezcla recomendada de tipos de inversión. Diversificar (no poner todo en una cosa) reduce el riesgo de perderlo todo.</Tip>
+                {(() => {
+                  const palette = ['#3B82F6','#22C55E','#F59E0B','#A855F7','#06B6D4','#EC4899']
+                  const dData = plan.recommendedAllocation.map((a,i) => ({ label:a.type, value:a.percentage, color:palette[i%palette.length] }))
+                  return (
+                    <div style={{ display:'flex', gap:14, alignItems:'center', marginTop:10, marginBottom:14 }}>
+                      <div style={{ flexShrink:0 }}><Donut data={dData} size={130} thickness={22} /></div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <Legend items={dData.map(d => ({ ...d, right: `${d.value}%` }))} />
+                      </div>
+                    </div>
+                  )
+                })()}
                 {plan.recommendedAllocation.map((a,i) => (
-                  <div key={i} style={{ marginBottom:i<plan.recommendedAllocation.length-1?14:0 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                      <span style={{ fontSize:13, fontWeight:600 }}>{a.type}</span>
+                  <div key={i} style={{ marginTop:i===0?0:10, paddingTop:i===0?0:10, borderTop:i===0?'none':'1px solid var(--border)' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                      <span style={{ fontSize:13, fontWeight:700 }}>{a.type}</span>
                       <span style={{ fontSize:13, fontWeight:800, color:'var(--blue)' }}>{a.percentage}%</span>
                     </div>
-                    <div style={{ height:4, background:'var(--bg4)', borderRadius:2, marginBottom:4, overflow:'hidden' }}>
-                      <div style={{ height:'100%', width:`${a.percentage}%`, background:'var(--blue)', borderRadius:2 }} />
-                    </div>
-                    <div style={{ fontSize:11, color:'var(--text-mute)' }}>{a.examples?.join(' · ')} — {a.reason}</div>
+                    <div style={{ fontSize:11, color:'var(--text-mute)', lineHeight:1.5 }}>{a.examples?.join(' · ')}</div>
+                    <div style={{ fontSize:11, color:'var(--text-dim)', marginTop:3, lineHeight:1.5 }}>{a.reason}</div>
                   </div>
                 ))}
               </Card>
@@ -644,9 +833,11 @@ const TABS = [
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('screener')
+  const [tab, setTab]           = useState('screener')
+  const [beginner, setBeginner] = usePersisted('ff_beginner', false)
 
   return (
+    <BeginnerCtx.Provider value={beginner}>
     <div style={{ display:'flex', flexDirection:'column', height:'100dvh', background:'var(--bg)', color:'var(--text)', fontFamily:'var(--font)' }}>
       <div style={{ padding:'calc(env(safe-area-inset-top) + 12px) 16px 0', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
@@ -659,9 +850,10 @@ export default function App() {
             <div style={{ fontSize:15, fontWeight:800, letterSpacing:'-0.3px' }}>Future Flow</div>
             <div style={{ fontSize:10, color:'var(--text-mute)' }}>Yahoo Finance · IA Claude · Solo análisis informativo</div>
           </div>
-          <div style={{ fontSize:10, color:'var(--text-mute)', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:6, padding:'4px 8px' }}>
-            {new Date().toLocaleDateString('es-ES',{day:'numeric',month:'short'})}
-          </div>
+          <button onClick={() => setBeginner(b => !b)} title={beginner?'Modo principiante: encendido':'Modo principiante: apagado'}
+            style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, fontWeight:700, color:beginner?'var(--amber)':'var(--text-mute)', background:beginner?'rgba(245,158,11,0.13)':'var(--bg3)', border:`1px solid ${beginner?'rgba(245,158,11,0.35)':'var(--border)'}`, borderRadius:8, padding:'5px 9px', cursor:'pointer', transition:'all 0.15s' }}>
+            🎓 {beginner?'Modo fácil ON':'Modo fácil'}
+          </button>
         </div>
         <div style={{ display:'flex', gap:0 }}>
           {TABS.map(t => (
@@ -689,5 +881,6 @@ export default function App() {
       <div style={{ display: tab==='portfolio' ? 'flex' : 'none', flex:1, flexDirection:'column', minHeight:0 }}><PortfolioTab /></div>
       <div style={{ display: tab==='goals'     ? 'flex' : 'none', flex:1, flexDirection:'column', minHeight:0 }}><GoalsTab     /></div>
     </div>
+    </BeginnerCtx.Provider>
   )
 }

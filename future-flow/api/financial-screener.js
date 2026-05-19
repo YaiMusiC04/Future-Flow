@@ -141,5 +141,17 @@ export default async function handler(req, res) {
     analysis = { marketOverview: text, picks: [] }
   }
 
+  const quoteBySymbol = Object.fromEntries(allQuotes.map(q => [q.symbol, q]))
+  analysis.picks = (analysis.picks || []).map(p => {
+    const q = quoteBySymbol[p.symbol]
+    return q ? {
+      ...p,
+      fiftyTwoWeekLow:  q.fiftyTwoWeekLow,
+      fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+      fiftyDayAverage:  q.fiftyDayAverage,
+      marketCap:        q.marketCap,
+    } : p
+  })
+
   return res.json({ ...analysis, fetchedAt: new Date().toISOString(), scanned: allQuotes.length, losersFound: hardLosers.length })
 }
