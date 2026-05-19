@@ -84,7 +84,7 @@ function buildPrompt(candidates, query) {
   return `Fecha: ${today}\nConsulta: ${query}\n\nACCIONES CANDIDATAS (caída ≥5% hoy, datos Yahoo Finance):\n${stocksText || 'No se encontraron acciones con los criterios exactos. Usa las más representativas disponibles.'}\n\nDevuelve EXACTAMENTE este JSON (3 picks, en español):\n{\n  "marketOverview": "Contexto de mercado hoy en 2 oraciones",\n  "picks": [\n    {\n      "rank": 1,\n      "symbol": "TICKER",\n      "name": "Nombre completo",\n      "action": "COMPRAR" | "ESPECULAR" | "OBSERVAR",\n      "currentPrice": 0.00,\n      "changePercent": -5.0,\n      "entryLow": 0.00,\n      "entryHigh": 0.00,\n      "target30d": 0.00,\n      "stopLoss": 0.00,\n      "probability": 72,\n      "probabilityReason": "Breve razón del % (1 oración)",\n      "reasoning": "Análisis del por qué es una oportunidad (3-4 oraciones)",\n      "revenueGrowth": 12.3,\n      "earningsGrowth": 8.5,\n      "riskLevel": "BAJO" | "MEDIO" | "ALTO",\n      "optionsPlay": {\n        "strategy": "CALL alcista" | "PUT bajista" | "N/A",\n        "strike": 0.00,\n        "daysToExpiry": 30,\n        "estimatedPremium": "$X.XX",\n        "maxGainPct": "X%",\n        "reason": "Por qué esta estrategia"\n      }\n    }\n  ],\n  "disclaimer": "Análisis informativo basado en datos públicos. No constituye asesoría financiera. Consulta con un asesor certificado antes de invertir."\n}`
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
